@@ -41,7 +41,7 @@ public class ContinentController {
         That missing type information can be added to the model by either adding it to the
         empty instance on construction via CollectionModel.empty(ContinentDto.class) or as fallback like in this case.
      */
-    @GetMapping("")
+    @GetMapping
     public CollectionModel<ContinentDto> getAllContinents() {
         List<ContinentDto> countriesDto = continentRepository.findAll().stream()
                 .map(mapper::mapContinent)
@@ -64,7 +64,8 @@ public class ContinentController {
      */
     @GetMapping("/{continentId}")
     public ResponseEntity<ContinentDto> getContinentById(@PathVariable Integer continentId) {
-        ContinentDto continentDto = mapper.mapContinentWithCountriesNames(continentRepository.findById(continentId).orElseThrow());
+        ContinentDto continentDto = mapper.mapContinentWithCountriesNames(
+                continentRepository.findById(continentId).orElseThrow(() -> new IllegalArgumentException("Continent not found")));
 
         // 1st attempt with poor performance:
 //        continentDto.getCountries().forEach(c -> c.add(linkTo(methodOn(ContinentController.class).getCountryById(continentId, c.getId())).withSelfRel()));
@@ -72,7 +73,9 @@ public class ContinentController {
 //        continentDto.add(linkTo(methodOn(ContinentController.class).getContinentById(continentId + 1)).withRel("next"));
 //        continentDto.add(linkTo(methodOn(ContinentController.class).getContinentById(continentId - 1)).withRel("previous"));
 
-        continentDto.getCountries().forEach(c -> c.add(linkTo(ContinentController.class).slash(continentId).slash("countries").slash(c.getId()).withSelfRel()));
+        // 2nd attempt - faster because without methodOn()
+        continentDto.getCountries().forEach(c -> c.add(
+                linkTo(ContinentController.class).slash(continentId).slash("countries").slash(c.getId()).withSelfRel()));
         continentDto.add(linkTo(ContinentController.class).slash(continentId).withSelfRel());
         if (continentId < 6) {
             continentDto.add(linkTo(ContinentController.class).slash(continentId + 1).withRel("next"));
@@ -80,6 +83,9 @@ public class ContinentController {
         if (continentId > 1) {
             continentDto.add(linkTo(ContinentController.class).slash(continentId - 1).withRel("previous"));
         }
+
+        // 3rd attempt could be faster if we get rid of both methodOn() and linkTo().
+        // To do date we could use direct link building with help of BasicLinkBuilder or even StringBuilder.
 
         return ResponseEntity.ok(continentDto);
     }
